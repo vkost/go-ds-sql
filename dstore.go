@@ -186,9 +186,7 @@ func (d *Datastore) Query(q dsq.Query) (dsq.Results, error) {
 		raw = dsq.NaiveFilter(raw, f)
 	}
 
-	for _, o := range q.Orders {
-		raw = dsq.NaiveOrder(raw, o)
-	}
+	raw = dsq.NaiveOrder(raw, q.Orders...)
 
 	return raw, nil
 }
