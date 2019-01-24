@@ -21,10 +21,10 @@
     }
   ],
   "gxVersion": "0.14.0",
-  "language": "Go",
+  "language": "go",
   "license": "",
   "name": "sql-datastore",
   "releaseCmd": "git commit -a -m \"gx publish $VERSION\"",
-  "version": "1.0.1"
+  "version": "1.0.2"
 }
 
