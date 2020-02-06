@@ -221,6 +221,10 @@ func (d *Datastore) RawQuery(q dsq.Query) (dsq.Results, error) {
 	return results, nil
 }
 
+func (d *Datastore) Sync(key ds.Key) error {
+	return nil
+}
+
 func (d *Datastore) GetSize(key ds.Key) (int, error) {
 	row := d.db.QueryRow(d.queries.GetSize(), key.String())
 	var size int
