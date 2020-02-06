@@ -12,6 +12,7 @@ import (
 
 	ds "github.com/ipfs/go-datastore"
 	dsq "github.com/ipfs/go-datastore/query"
+	dstest "github.com/ipfs/go-datastore/test"
 	_ "github.com/lib/pq"
 )
 
@@ -732,6 +733,13 @@ func TestManyKeysAndQuery(t *testing.T) {
 	}
 
 	SubtestManyKeysAndQuery(t)
+}
+
+func TestSuite(t *testing.T) {
+	d, done := newDS(t)
+	defer done()
+
+	dstest.SubtestAll(t, d)
 }
 
 func expectMatches(t *testing.T, expect []string, actualR dsq.Results) {
