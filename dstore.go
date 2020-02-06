@@ -243,8 +243,10 @@ func (d *Datastore) GetSize(key ds.Key) (int, error) {
 func QueryWithParams(d *Datastore, q dsq.Query) (*sql.Rows, error) {
 	var qNew = d.queries.Query()
 
-	if q.Prefix != "" {
-		qNew += fmt.Sprintf(d.queries.Prefix(), q.Prefix)
+	// normalize
+	prefix := ds.NewKey(q.Prefix).String()
+	if prefix != "/" {
+		qNew += fmt.Sprintf(d.queries.Prefix(), prefix+"/")
 	}
 
 	if q.Limit != 0 {
