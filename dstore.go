@@ -57,10 +57,6 @@ func (b *batch) GetTransaction() (*sql.Tx, error) {
 }
 
 func (b *batch) Put(key ds.Key, val []byte) error {
-	if val == nil {
-		return ds.ErrInvalidType
-	}
-
 	txn, err := b.GetTransaction()
 	if err != nil {
 		b.txn.Rollback()
@@ -164,10 +160,6 @@ func (d *Datastore) Has(key ds.Key) (exists bool, err error) {
 }
 
 func (d *Datastore) Put(key ds.Key, value []byte) error {
-	if value == nil {
-		return ds.ErrInvalidType
-	}
-
 	_, err := d.db.Exec(d.queries.Put(), key.String(), value)
 	if err != nil {
 		return err
