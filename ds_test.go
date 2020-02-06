@@ -5,10 +5,9 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"fmt"
-	"io/ioutil"
-	"os"
 	"sort"
 	"strings"
+	"sync"
 	"testing"
 
 	ds "github.com/ipfs/go-datastore"
@@ -16,7 +15,34 @@ import (
 	_ "github.com/lib/pq"
 )
 
-// Tests in this package require a postgres database named "test_datastore"
+var initOnce sync.Once
+
+// Automatically re-create the test datastore.
+func initPG() {
+	initOnce.Do(func() {
+		fmtstr := "postgres://%s:%s@%s/?sslmode=disable"
+		constr := fmt.Sprintf(fmtstr, "postgres", "", "127.0.0.1")
+		db, err := sql.Open("postgres", constr)
+		if err != nil {
+			panic(err)
+		}
+
+		// drop/create the database.
+		_, err = db.Exec("DROP DATABASE IF EXISTS test_datastore")
+		if err != nil {
+			panic(err)
+		}
+		_, err = db.Exec("CREATE DATABASE test_datastore")
+		if err != nil {
+			panic(err)
+		}
+		err = db.Close()
+		if err != nil {
+			panic(err)
+		}
+	})
+}
+
 var testcases = map[string]string{
 	"/a":     "a",
 	"/a/b":   "ab",
@@ -72,10 +98,8 @@ func (fakeQueries) GetSize() string {
 //  d, close := newDS(t)
 //  defer close()
 func newDS(t *testing.T) (*Datastore, func()) {
-	path, err := ioutil.TempDir("/tmp", "testing_postgres_")
-	if err != nil {
-		t.Fatal(err)
-	}
+	initPG()
+	// connect to that database.
 	fmtstr := "postgres://%s:%s@%s/%s?sslmode=disable"
 	constr := fmt.Sprintf(fmtstr, "postgres", "", "127.0.0.1", "test_datastore")
 	db, err := sql.Open("postgres", constr)
@@ -88,7 +112,6 @@ func newDS(t *testing.T) (*Datastore, func()) {
 	}
 	d := NewDatastore(db, fakeQueries{})
 	return d, func() {
-		os.RemoveAll(path)
 		d.db.Exec("DROP TABLE IF EXISTS blocks")
 		d.Close()
 	}
@@ -712,6 +735,7 @@ func TestManyKeysAndQuery(t *testing.T) {
 }
 
 func expectMatches(t *testing.T, expect []string, actualR dsq.Results) {
+	t.Helper()
 	actual, err := actualR.Rest()
 	if err != nil {
 		t.Error(err)
