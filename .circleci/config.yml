@@ -4,13 +4,12 @@ orbs:
   ci-go: ipfs/ci-go@0.2
 
 executors:
-  go-s3:
+  go-postgres:
     docker:
-      - image: circleci/golang:1.13.7
-      - image: postgres
-    environment:
-      LOCAL_S3: 1
-      SERVICES: s3
+      - image: circleci/golang:1.13.8
+      - image: circleci/postgres:latest
+        environment:
+          POSTGRES_HOST_AUTH_METHOD: trust
 
 workflows:
   version: 2
@@ -19,4 +18,4 @@ workflows:
     - ci-go/build
     - ci-go/lint
     - ci-go/test:
-        executor: go-s3
+        executor: go-postgres
