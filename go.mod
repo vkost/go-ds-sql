@@ -1,4 +1,4 @@
-module github.com/whyrusleeping/sql-datastore
+module github.com/ipfs/go-ds-sql
 
 go 1.12
 

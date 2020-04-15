@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	sqlds "github.com/whyrusleeping/sql-datastore"
+	"github.com/ipfs/go-ds-sql"
 
 	_ "github.com/lib/pq" //postgres driver
 )
