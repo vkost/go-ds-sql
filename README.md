@@ -4,7 +4,8 @@ An implementation of [the datastore interface](https://github.com/ipfs/go-datast
 that can be backed by any sql database.
 
 ## Usage
-```
+
+```go
 import (
 	"database/sql"
 	"github.com/ipfs/go-ds-sql"
@@ -12,7 +13,7 @@ import (
 
 mydb, _ := sql.Open("yourdb", "yourdbparameters")
 
-ds := sqlds.NewSqlDatastore(mydb)
+ds := sqlds.NewDatastore(mydb)
 ```
 
 ## License
