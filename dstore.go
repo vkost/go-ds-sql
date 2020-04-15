@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"log"
 
 	ds "github.com/ipfs/go-datastore"
 	dsq "github.com/ipfs/go-datastore/query"
@@ -202,32 +201,37 @@ func (d *Datastore) RawQuery(q dsq.Query) (dsq.Results, error) {
 		return nil, err
 	}
 
-	var entries []dsq.Entry
-	defer rows.Close()
+	it := dsq.Iterator{
+		Next: func() (dsq.Result, bool) {
+			if !rows.Next() {
+				return dsq.Result{}, false
+			}
 
-	for rows.Next() {
-		var key string
-		var out []byte
-		err := rows.Scan(&key, &out)
+			var key string
+			var out []byte
 
-		if err != nil {
-			log.Fatal("Error reading rows from query")
-		}
+			err := rows.Scan(&key, &out)
+			if err != nil {
+				return dsq.Result{Error: err}, false
+			}
 
-		entry := dsq.Entry{Key: key}
+			entry := dsq.Entry{Key: key}
 
-		if !q.KeysOnly {
-			entry.Value = out
-		}
-		if q.ReturnsSizes {
-			entry.Size = len(out)
-		}
+			if !q.KeysOnly {
+				entry.Value = out
+			}
+			if q.ReturnsSizes {
+				entry.Size = len(out)
+			}
 
-		entries = append(entries, entry)
+			return dsq.Result{Entry: entry}, true
+		},
+		Close: func() error {
+			return rows.Close()
+		},
 	}
 
-	results := dsq.ResultsWithEntries(q, entries)
-	return results, nil
+	return dsq.ResultsFromIterator(q, it), nil
 }
 
 func (d *Datastore) Sync(key ds.Key) error {
