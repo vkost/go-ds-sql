@@ -113,7 +113,7 @@ func newDS(t *testing.T) (*Datastore, func()) {
 	}
 	d := NewDatastore(db, fakeQueries{})
 	return d, func() {
-		d.db.Exec("DROP TABLE IF EXISTS blocks")
+		_, _ = d.db.Exec("DROP TABLE IF EXISTS blocks")
 		d.Close()
 	}
 }
@@ -529,7 +529,7 @@ func SubtestManyKeysAndQuery(t *testing.T) {
 		keystrs = append(keystrs, dsk.String())
 		keys = append(keys, dsk)
 		buf := make([]byte, 64)
-		rand.Read(buf)
+		_, _ = rand.Read(buf)
 		values = append(values, buf)
 	}
 
@@ -666,7 +666,7 @@ func TestManyKeysAndQuery(t *testing.T) {
 		keystrs = append(keystrs, dsk.String())
 		keys = append(keys, dsk)
 		buf := make([]byte, 64)
-		rand.Read(buf)
+		_, _ = rand.Read(buf)
 		values = append(values, buf)
 	}
 

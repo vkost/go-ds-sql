@@ -45,7 +45,8 @@ func (b *batch) GetTransaction() (*sql.Tx, error) {
 	newTransaction, err := b.db.Begin()
 	if err != nil {
 		if newTransaction != nil {
-			newTransaction.Rollback()
+			// nothing we can do about this error.
+			_ = newTransaction.Rollback()
 		}
 
 		return nil, err
@@ -58,13 +59,13 @@ func (b *batch) GetTransaction() (*sql.Tx, error) {
 func (b *batch) Put(key ds.Key, val []byte) error {
 	txn, err := b.GetTransaction()
 	if err != nil {
-		b.txn.Rollback()
+		_ = b.txn.Rollback()
 		return err
 	}
 
 	_, err = txn.Exec(b.queries.Put(), key.String(), val)
 	if err != nil {
-		b.txn.Rollback()
+		_ = b.txn.Rollback()
 		return err
 	}
 
@@ -74,12 +75,13 @@ func (b *batch) Put(key ds.Key, val []byte) error {
 func (b *batch) Delete(key ds.Key) error {
 	txn, err := b.GetTransaction()
 	if err != nil {
-		b.txn.Rollback()
+		_ = b.txn.Rollback()
+		return err
 	}
 
 	_, err = txn.Exec(b.queries.Delete(), key.String())
 	if err != nil {
-		b.txn.Rollback()
+		_ = b.txn.Rollback()
 		return err
 	}
 
@@ -92,7 +94,7 @@ func (b *batch) Commit() error {
 	}
 	var err = b.txn.Commit()
 	if err != nil {
-		b.txn.Rollback()
+		_ = b.txn.Rollback()
 		return err
 	}
 
