@@ -180,6 +180,16 @@ func (d *Datastore) Query(q dsq.Query) (dsq.Results, error) {
 
 	raw = dsq.NaiveOrder(raw, q.Orders...)
 
+	// if we have filters or orders, offset and limit won't have been applied in the query
+	if len(q.Filters) > 0 || len(q.Orders) > 0 {
+		if q.Offset != 0 {
+			raw = dsq.NaiveOffset(raw, q.Offset)
+		}
+		if q.Limit != 0 {
+			raw = dsq.NaiveLimit(raw, q.Limit)
+		}
+	}
+
 	return raw, nil
 }
 
@@ -187,12 +197,7 @@ func (d *Datastore) RawQuery(q dsq.Query) (dsq.Results, error) {
 	var rows *sql.Rows
 	var err error
 
-	if q.Prefix != "" {
-		rows, err = QueryWithParams(d, q)
-	} else {
-		rows, err = d.db.Query(d.queries.Query())
-	}
-
+	rows, err = QueryWithParams(d, q)
 	if err != nil {
 		return nil, err
 	}
@@ -209,9 +214,13 @@ func (d *Datastore) RawQuery(q dsq.Query) (dsq.Results, error) {
 			log.Fatal("Error reading rows from query")
 		}
 
-		entry := dsq.Entry{
-			Key:   key,
-			Value: out,
+		entry := dsq.Entry{Key: key}
+
+		if !q.KeysOnly {
+			entry.Value = out
+		}
+		if q.ReturnsSizes {
+			entry.Size = len(out)
 		}
 
 		entries = append(entries, entry)
@@ -243,18 +252,22 @@ func (d *Datastore) GetSize(key ds.Key) (int, error) {
 func QueryWithParams(d *Datastore, q dsq.Query) (*sql.Rows, error) {
 	var qNew = d.queries.Query()
 
-	// normalize
-	prefix := ds.NewKey(q.Prefix).String()
-	if prefix != "/" {
-		qNew += fmt.Sprintf(d.queries.Prefix(), prefix+"/")
+	if q.Prefix != "" {
+		// normalize
+		prefix := ds.NewKey(q.Prefix).String()
+		if prefix != "/" {
+			qNew += fmt.Sprintf(d.queries.Prefix(), prefix+"/")
+		}
 	}
 
-	if q.Limit != 0 {
-		qNew += fmt.Sprintf(d.queries.Limit(), q.Limit)
-	}
-
-	if q.Offset != 0 {
-		qNew += fmt.Sprintf(d.queries.Offset(), q.Offset)
+	// only apply limit and offset if we do not have to naive filter/order the results
+	if len(q.Filters) == 0 && len(q.Orders) == 0 {
+		if q.Limit != 0 {
+			qNew += fmt.Sprintf(d.queries.Limit(), q.Limit)
+		}
+		if q.Offset != 0 {
+			qNew += fmt.Sprintf(d.queries.Offset(), q.Offset)
+		}
 	}
 
 	return d.db.Query(qNew)

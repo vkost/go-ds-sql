@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/whyrusleeping/sql-datastore"
+	sqlds "github.com/whyrusleeping/sql-datastore"
 
 	_ "github.com/lib/pq" //postgres driver
 )
@@ -34,7 +34,7 @@ func (Queries) Get() string {
 }
 
 func (Queries) Put() string {
-	return `INSERT INTO blocks (key, data) SELECT $1, $2 WHERE NOT EXISTS ( SELECT key FROM blocks WHERE key = $1)`
+	return `INSERT INTO blocks (key, data) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET data = $2`
 }
 
 func (Queries) Query() string {

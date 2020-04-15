@@ -71,7 +71,7 @@ func (fakeQueries) Get() string {
 }
 
 func (fakeQueries) Put() string {
-	return `INSERT INTO blocks (key, data) SELECT $1, $2 WHERE NOT EXISTS ( SELECT key FROM blocks WHERE key = $1)`
+	return `INSERT INTO blocks (key, data) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET data = $2`
 }
 
 func (fakeQueries) Query() string {
