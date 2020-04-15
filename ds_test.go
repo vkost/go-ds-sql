@@ -5,18 +5,45 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"fmt"
-	"io/ioutil"
-	"os"
 	"sort"
 	"strings"
+	"sync"
 	"testing"
 
 	ds "github.com/ipfs/go-datastore"
 	dsq "github.com/ipfs/go-datastore/query"
+	dstest "github.com/ipfs/go-datastore/test"
 	_ "github.com/lib/pq"
 )
 
-// Tests in this package require a postgres database named "test_datastore"
+var initOnce sync.Once
+
+// Automatically re-create the test datastore.
+func initPG() {
+	initOnce.Do(func() {
+		fmtstr := "postgres://%s:%s@%s/?sslmode=disable"
+		constr := fmt.Sprintf(fmtstr, "postgres", "", "127.0.0.1")
+		db, err := sql.Open("postgres", constr)
+		if err != nil {
+			panic(err)
+		}
+
+		// drop/create the database.
+		_, err = db.Exec("DROP DATABASE IF EXISTS test_datastore")
+		if err != nil {
+			panic(err)
+		}
+		_, err = db.Exec("CREATE DATABASE test_datastore")
+		if err != nil {
+			panic(err)
+		}
+		err = db.Close()
+		if err != nil {
+			panic(err)
+		}
+	})
+}
+
 var testcases = map[string]string{
 	"/a":     "a",
 	"/a/b":   "ab",
@@ -44,7 +71,7 @@ func (fakeQueries) Get() string {
 }
 
 func (fakeQueries) Put() string {
-	return `INSERT INTO blocks (key, data) SELECT $1, $2 WHERE NOT EXISTS ( SELECT key FROM blocks WHERE key = $1)`
+	return `INSERT INTO blocks (key, data) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET data = $2`
 }
 
 func (fakeQueries) Query() string {
@@ -72,10 +99,8 @@ func (fakeQueries) GetSize() string {
 //  d, close := newDS(t)
 //  defer close()
 func newDS(t *testing.T) (*Datastore, func()) {
-	path, err := ioutil.TempDir("/tmp", "testing_postgres_")
-	if err != nil {
-		t.Fatal(err)
-	}
+	initPG()
+	// connect to that database.
 	fmtstr := "postgres://%s:%s@%s/%s?sslmode=disable"
 	constr := fmt.Sprintf(fmtstr, "postgres", "", "127.0.0.1", "test_datastore")
 	db, err := sql.Open("postgres", constr)
@@ -88,8 +113,7 @@ func newDS(t *testing.T) (*Datastore, func()) {
 	}
 	d := NewDatastore(db, fakeQueries{})
 	return d, func() {
-		os.RemoveAll(path)
-		d.db.Exec("DROP TABLE IF EXISTS blocks")
+		_, _ = d.db.Exec("DROP TABLE IF EXISTS blocks")
 		d.Close()
 	}
 }
@@ -98,14 +122,6 @@ func addTestCases(t *testing.T, d *Datastore, testcases map[string]string) {
 	for k, v := range testcases {
 		dsk := ds.NewKey(k)
 		if err := d.Put(dsk, []byte(v)); err != nil {
-			t.Fatal(err)
-		}
-	}
-
-	err := d.Put(ds.NewKey("/foo"), nil)
-	if err != ds.ErrInvalidType {
-		t.Error("Expected err to be ds.ErrInvalidType")
-		if err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -328,14 +344,6 @@ func TestBatching(t *testing.T) {
 		}
 	}
 
-	err = b.Put(ds.NewKey("/foo"), nil)
-	if err != ds.ErrInvalidType {
-		t.Error("Expected err to be ds.ErrInvalidType")
-		if err != nil {
-			t.Fatal(err)
-		}
-	}
-
 	err = b.Commit()
 	if err != nil {
 		t.Fatal(err)
@@ -521,7 +529,7 @@ func SubtestManyKeysAndQuery(t *testing.T) {
 		keystrs = append(keystrs, dsk.String())
 		keys = append(keys, dsk)
 		buf := make([]byte, 64)
-		rand.Read(buf)
+		_, _ = rand.Read(buf)
 		values = append(values, buf)
 	}
 
@@ -658,7 +666,7 @@ func TestManyKeysAndQuery(t *testing.T) {
 		keystrs = append(keystrs, dsk.String())
 		keys = append(keys, dsk)
 		buf := make([]byte, 64)
-		rand.Read(buf)
+		_, _ = rand.Read(buf)
 		values = append(values, buf)
 	}
 
@@ -727,7 +735,15 @@ func TestManyKeysAndQuery(t *testing.T) {
 	SubtestManyKeysAndQuery(t)
 }
 
+func TestSuite(t *testing.T) {
+	d, done := newDS(t)
+	defer done()
+
+	dstest.SubtestAll(t, d)
+}
+
 func expectMatches(t *testing.T, expect []string, actualR dsq.Results) {
+	t.Helper()
 	actual, err := actualR.Rest()
 	if err != nil {
 		t.Error(err)

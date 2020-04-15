@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"log"
 
 	ds "github.com/ipfs/go-datastore"
 	dsq "github.com/ipfs/go-datastore/query"
@@ -46,7 +45,8 @@ func (b *batch) GetTransaction() (*sql.Tx, error) {
 	newTransaction, err := b.db.Begin()
 	if err != nil {
 		if newTransaction != nil {
-			newTransaction.Rollback()
+			// nothing we can do about this error.
+			_ = newTransaction.Rollback()
 		}
 
 		return nil, err
@@ -57,19 +57,15 @@ func (b *batch) GetTransaction() (*sql.Tx, error) {
 }
 
 func (b *batch) Put(key ds.Key, val []byte) error {
-	if val == nil {
-		return ds.ErrInvalidType
-	}
-
 	txn, err := b.GetTransaction()
 	if err != nil {
-		b.txn.Rollback()
+		_ = b.txn.Rollback()
 		return err
 	}
 
 	_, err = txn.Exec(b.queries.Put(), key.String(), val)
 	if err != nil {
-		b.txn.Rollback()
+		_ = b.txn.Rollback()
 		return err
 	}
 
@@ -79,12 +75,13 @@ func (b *batch) Put(key ds.Key, val []byte) error {
 func (b *batch) Delete(key ds.Key) error {
 	txn, err := b.GetTransaction()
 	if err != nil {
-		b.txn.Rollback()
+		_ = b.txn.Rollback()
+		return err
 	}
 
 	_, err = txn.Exec(b.queries.Delete(), key.String())
 	if err != nil {
-		b.txn.Rollback()
+		_ = b.txn.Rollback()
 		return err
 	}
 
@@ -97,7 +94,7 @@ func (b *batch) Commit() error {
 	}
 	var err = b.txn.Commit()
 	if err != nil {
-		b.txn.Rollback()
+		_ = b.txn.Rollback()
 		return err
 	}
 
@@ -164,10 +161,6 @@ func (d *Datastore) Has(key ds.Key) (exists bool, err error) {
 }
 
 func (d *Datastore) Put(key ds.Key, value []byte) error {
-	if value == nil {
-		return ds.ErrInvalidType
-	}
-
 	_, err := d.db.Exec(d.queries.Put(), key.String(), value)
 	if err != nil {
 		return err
@@ -188,6 +181,16 @@ func (d *Datastore) Query(q dsq.Query) (dsq.Results, error) {
 
 	raw = dsq.NaiveOrder(raw, q.Orders...)
 
+	// if we have filters or orders, offset and limit won't have been applied in the query
+	if len(q.Filters) > 0 || len(q.Orders) > 0 {
+		if q.Offset != 0 {
+			raw = dsq.NaiveOffset(raw, q.Offset)
+		}
+		if q.Limit != 0 {
+			raw = dsq.NaiveLimit(raw, q.Limit)
+		}
+	}
+
 	return raw, nil
 }
 
@@ -195,38 +198,46 @@ func (d *Datastore) RawQuery(q dsq.Query) (dsq.Results, error) {
 	var rows *sql.Rows
 	var err error
 
-	if q.Prefix != "" {
-		rows, err = QueryWithParams(d, q)
-	} else {
-		rows, err = d.db.Query(d.queries.Query())
-	}
-
+	rows, err = QueryWithParams(d, q)
 	if err != nil {
 		return nil, err
 	}
 
-	var entries []dsq.Entry
-	defer rows.Close()
+	it := dsq.Iterator{
+		Next: func() (dsq.Result, bool) {
+			if !rows.Next() {
+				return dsq.Result{}, false
+			}
 
-	for rows.Next() {
-		var key string
-		var out []byte
-		err := rows.Scan(&key, &out)
+			var key string
+			var out []byte
 
-		if err != nil {
-			log.Fatal("Error reading rows from query")
-		}
+			err := rows.Scan(&key, &out)
+			if err != nil {
+				return dsq.Result{Error: err}, false
+			}
 
-		entry := dsq.Entry{
-			Key:   key,
-			Value: out,
-		}
+			entry := dsq.Entry{Key: key}
 
-		entries = append(entries, entry)
+			if !q.KeysOnly {
+				entry.Value = out
+			}
+			if q.ReturnsSizes {
+				entry.Size = len(out)
+			}
+
+			return dsq.Result{Entry: entry}, true
+		},
+		Close: func() error {
+			return rows.Close()
+		},
 	}
 
-	results := dsq.ResultsWithEntries(q, entries)
-	return results, nil
+	return dsq.ResultsFromIterator(q, it), nil
+}
+
+func (d *Datastore) Sync(key ds.Key) error {
+	return nil
 }
 
 func (d *Datastore) GetSize(key ds.Key) (int, error) {
@@ -248,15 +259,21 @@ func QueryWithParams(d *Datastore, q dsq.Query) (*sql.Rows, error) {
 	var qNew = d.queries.Query()
 
 	if q.Prefix != "" {
-		qNew += fmt.Sprintf(d.queries.Prefix(), q.Prefix)
+		// normalize
+		prefix := ds.NewKey(q.Prefix).String()
+		if prefix != "/" {
+			qNew += fmt.Sprintf(d.queries.Prefix(), prefix+"/")
+		}
 	}
 
-	if q.Limit != 0 {
-		qNew += fmt.Sprintf(d.queries.Limit(), q.Limit)
-	}
-
-	if q.Offset != 0 {
-		qNew += fmt.Sprintf(d.queries.Offset(), q.Offset)
+	// only apply limit and offset if we do not have to naive filter/order the results
+	if len(q.Filters) == 0 && len(q.Orders) == 0 {
+		if q.Limit != 0 {
+			qNew += fmt.Sprintf(d.queries.Limit(), q.Limit)
+		}
+		if q.Offset != 0 {
+			qNew += fmt.Sprintf(d.queries.Offset(), q.Offset)
+		}
 	}
 
 	return d.db.Query(qNew)
