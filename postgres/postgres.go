@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/ipfs/go-ds-sql"
+	sqlds "github.com/ipfs/go-ds-sql"
 
 	_ "github.com/lib/pq" //postgres driver
 )
@@ -16,45 +16,80 @@ type Options struct {
 	User     string
 	Password string
 	Database string
+	Table    string
 }
 
+// Queries are the postgres queries for a given table.
 type Queries struct {
+	deleteQuery  string
+	existsQuery  string
+	getQuery     string
+	putQuery     string
+	queryQuery   string
+	prefixQuery  string
+	limitQuery   string
+	offsetQuery  string
+	getSizeQuery string
 }
 
-func (Queries) Delete() string {
-	return `DELETE FROM blocks WHERE key = $1`
+// NewQueries creates a new PostgreSQL set of queries for the passed table
+func NewQueries(tbl string) Queries {
+	return Queries{
+		deleteQuery:  fmt.Sprintf("DELETE FROM %s WHERE key = $1", tbl),
+		existsQuery:  fmt.Sprintf("SELECT exists(SELECT 1 FROM %s WHERE key=$1)", tbl),
+		getQuery:     fmt.Sprintf("SELECT data FROM %s WHERE key = $1", tbl),
+		putQuery:     fmt.Sprintf("INSERT INTO %s (key, data) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET data = $2", tbl),
+		queryQuery:   fmt.Sprintf("SELECT key, data FROM %s", tbl),
+		prefixQuery:  ` WHERE key LIKE '%s%%' ORDER BY key`,
+		limitQuery:   ` LIMIT %d`,
+		offsetQuery:  ` OFFSET %d`,
+		getSizeQuery: fmt.Sprintf("SELECT octet_length(data) FROM %s WHERE key = $1", tbl),
+	}
 }
 
-func (Queries) Exists() string {
-	return `SELECT exists(SELECT 1 FROM blocks WHERE key=$1)`
+// Delete returns the postgres query for deleting a row.
+func (q Queries) Delete() string {
+	return q.deleteQuery
 }
 
-func (Queries) Get() string {
-	return `SELECT data FROM blocks WHERE key = $1`
+// Exists returns the postgres query for determining if a row exists.
+func (q Queries) Exists() string {
+	return q.existsQuery
 }
 
-func (Queries) Put() string {
-	return `INSERT INTO blocks (key, data) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET data = $2`
+// Get returns the postgres query for getting a row.
+func (q Queries) Get() string {
+	return q.getQuery
 }
 
-func (Queries) Query() string {
-	return `SELECT key, data FROM blocks`
+// Put returns the postgres query for putting a row.
+func (q Queries) Put() string {
+	return q.putQuery
 }
 
-func (Queries) Prefix() string {
-	return ` WHERE key LIKE '%s%%' ORDER BY key`
+// Query returns the postgres query for getting multiple rows.
+func (q Queries) Query() string {
+	return q.queryQuery
 }
 
-func (Queries) Limit() string {
-	return ` LIMIT %d`
+// Prefix returns the postgres query fragment for getting a rows with a key prefix.
+func (q Queries) Prefix() string {
+	return q.prefixQuery
 }
 
-func (Queries) Offset() string {
-	return ` OFFSET %d`
+// Limit returns the postgres query fragment for limiting results.
+func (q Queries) Limit() string {
+	return q.limitQuery
 }
 
-func (Queries) GetSize() string {
-	return `SELECT octet_length(data) FROM blocks WHERE key = $1`
+// Offset returns the postgres query fragment for returning rows from a given offset.
+func (q Queries) Offset() string {
+	return q.offsetQuery
+}
+
+// GetSize returns the postgres query for determining the size of a value.
+func (q Queries) GetSize() string {
+	return q.getSizeQuery
 }
 
 // Create returns a datastore connected to postgres
@@ -67,7 +102,7 @@ func (opts *Options) Create() (*sqlds.Datastore, error) {
 		return nil, err
 	}
 
-	return sqlds.NewDatastore(db, Queries{}), nil
+	return sqlds.NewDatastore(db, NewQueries(opts.Table)), nil
 }
 
 func (opts *Options) setDefaults() {
@@ -85,5 +120,9 @@ func (opts *Options) setDefaults() {
 
 	if opts.Database == "" {
 		opts.Database = "datastore"
+	}
+
+	if opts.Table == "" {
+		opts.Table = "blocks"
 	}
 }
