@@ -14,7 +14,7 @@ import (
 	ds "github.com/ipfs/go-datastore"
 	dsq "github.com/ipfs/go-datastore/query"
 	dstest "github.com/ipfs/go-datastore/test"
-	sqlds "github.com/ipfs/go-ds-sql"
+	sqlds "github.com/vkost/go-ds-sql"
 
 	_ "github.com/mattn/go-sqlite3"
 )

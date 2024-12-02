@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	sqlds "github.com/ipfs/go-ds-sql"
 	"github.com/pkg/errors"
+	sqlds "github.com/vkost/go-ds-sql"
 	// we don't import a specific driver to let the user choose
 )
 
