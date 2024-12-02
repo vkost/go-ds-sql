@@ -1,4 +1,4 @@
-module github.com/ipfs/go-ds-sql
+module github.com/vkost/go-ds-sql
 
 go 1.21
 
