@@ -7,6 +7,7 @@ import (
 
 	datastore "github.com/ipfs/go-datastore"
 	dsq "github.com/ipfs/go-datastore/query"
+	dsextensions "github.com/textileio/go-datastore-extensions"
 )
 
 // ErrNotImplemented is returned when the SQL datastore does not yet implement the function call.
@@ -16,10 +17,21 @@ type txn struct {
 	db      *sql.DB
 	queries Queries
 	txn     *sql.Tx
+	ds      *Datastore
 }
+
+var _ dsextensions.TxnExt = (*txn)(nil)
 
 // NewTransaction creates a new database transaction, note the readOnly parameter is ignored by this implementation.
 func (ds *Datastore) NewTransaction(ctx context.Context, _ bool) (datastore.Txn, error) {
+	return ds.newTransaction(ctx)
+}
+
+func (ds *Datastore) NewTransactionExtended(ctx context.Context, _ bool) (dsextensions.TxnExt, error) {
+	return ds.newTransaction(ctx)
+}
+
+func (ds *Datastore) newTransaction(ctx context.Context) (dsextensions.TxnExt, error) {
 	sqlTxn, err := ds.db.BeginTx(ctx, nil)
 	if err != nil {
 		if sqlTxn != nil {
@@ -34,6 +46,7 @@ func (ds *Datastore) NewTransaction(ctx context.Context, _ bool) (datastore.Txn,
 		db:      ds.db,
 		queries: ds.queries,
 		txn:     sqlTxn,
+		ds:      ds,
 	}, nil
 }
 
@@ -80,7 +93,21 @@ func (t *txn) GetSize(ctx context.Context, key datastore.Key) (int, error) {
 }
 
 func (t *txn) Query(ctx context.Context, q dsq.Query) (dsq.Results, error) {
-	return nil, ErrNotImplemented
+	var qe dsextensions.QueryExt
+	qe.Query = q
+	return t.ds.query(ctx, qe)
+	//return nil, ErrNotImplemented
+}
+
+func (t *txn) QueryExtended(ctx context.Context, q dsextensions.QueryExt) (dsq.Results, error) {
+	//t.lock.Lock()
+	//defer t.lock.Unlock()
+	//if t.finalized {
+	//	return nil, ErrTxnFinalized
+	//}
+	//return t.m.query(t.ctx, q)
+	return t.ds.query(ctx, q)
+	//return nil, ErrNotImplemented
 }
 
 // Put adds a value to the datastore identified by the given key.

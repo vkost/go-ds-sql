@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	dsextensions "github.com/textileio/go-datastore-extensions"
 
 	ds "github.com/ipfs/go-datastore"
 	dsq "github.com/ipfs/go-datastore/query"
@@ -89,10 +90,21 @@ func (d *Datastore) Put(ctx context.Context, key ds.Key, value []byte) error {
 
 // Query returns multiple rows from the SQL database based on the passed query parameters.
 func (d *Datastore) Query(ctx context.Context, q dsq.Query) (dsq.Results, error) {
-	raw, err := d.rawQuery(ctx, q)
+	eq := dsextensions.QueryExt{q, ""}
+	return d.query(ctx, eq)
+}
+
+func (d *Datastore) QueryExtended(ctx context.Context, q dsextensions.QueryExt) (dsq.Results, error) {
+	return d.query(ctx, q)
+}
+
+func (d *Datastore) query(ctx context.Context, q dsextensions.QueryExt) (dsq.Results, error) {
+	raw, err := d.rawQuery(ctx, q.Query)
 	if err != nil {
 		return nil, err
 	}
+
+	// TODO: Try to understand what's the purpose of the extended parameter "SeekPrefix" and implement it here
 
 	for _, f := range q.Filters {
 		raw = dsq.NaiveFilter(raw, f)
