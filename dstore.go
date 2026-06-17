@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+
 	dsextensions "github.com/textileio/go-datastore-extensions"
 
 	ds "github.com/ipfs/go-datastore"
@@ -160,7 +161,7 @@ func (d *Datastore) rawQuery(ctx context.Context, q dsq.Query) (dsq.Results, err
 			return dsq.Result{Entry: entry}, true
 		},
 		Close: func() error {
-			return rows.Close()
+			return nil
 		},
 	}
 

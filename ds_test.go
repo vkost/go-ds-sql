@@ -23,7 +23,7 @@ var initOnce sync.Once
 func initPG() {
 	initOnce.Do(func() {
 		fmtstr := "postgres://%s:%s@%s/?sslmode=disable"
-		constr := fmt.Sprintf(fmtstr, "postgres", "", "127.0.0.1")
+		constr := fmt.Sprintf(fmtstr, "postgres", "password", "127.0.0.1")
 		db, err := sql.Open("postgres", constr)
 		if err != nil {
 			panic(err)
@@ -103,7 +103,7 @@ func newDS(t *testing.T) (*Datastore, func()) {
 	initPG()
 	// connect to that database.
 	fmtstr := "postgres://%s:%s@%s/%s?sslmode=disable"
-	constr := fmt.Sprintf(fmtstr, "postgres", "", "127.0.0.1", "test_datastore")
+	constr := fmt.Sprintf(fmtstr, "postgres", "password", "127.0.0.1", "test_datastore")
 	db, err := sql.Open("postgres", constr)
 	if err != nil {
 		t.Fatal(err)
