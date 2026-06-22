@@ -108,12 +108,19 @@ func newDS(t *testing.T) (*Datastore, func()) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	db.SetMaxIdleConns(0)
 	_, err = db.Exec("CREATE TABLE IF NOT EXISTS blocks (key TEXT NOT NULL UNIQUE, data BYTEA NOT NULL)")
 	if err != nil {
 		t.Fatal(err)
 	}
 	d := NewDatastore(db, fakeQueries{})
 	return d, func() {
+		// Verify no connections are open
+		stats := d.db.Stats()
+		if stats.OpenConnections > 0 {
+			t.Errorf("connection leak detected: %d connections still open", stats.OpenConnections)
+		}
+
 		_, _ = d.db.Exec("DROP TABLE IF EXISTS blocks")
 		d.Close()
 	}

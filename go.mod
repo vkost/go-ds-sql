@@ -1,12 +1,11 @@
 module github.com/vkost/go-ds-sql
 
-go 1.24.0
+go 1.25
 
 require (
 	github.com/ipfs/go-datastore v0.9.1
-	github.com/lib/pq v1.3.0
-	github.com/mattn/go-sqlite3 v1.14.9
-	github.com/pkg/errors v0.9.1
+	github.com/lib/pq v1.12.3
+	github.com/mattn/go-sqlite3 v1.14.24
 	github.com/textileio/go-datastore-extensions v1.1.0
 )
 
