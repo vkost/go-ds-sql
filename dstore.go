@@ -161,7 +161,7 @@ func (d *Datastore) rawQuery(ctx context.Context, q dsq.Query) (dsq.Results, err
 			return dsq.Result{Entry: entry}, true
 		},
 		Close: func() error {
-			return nil
+			return rows.Close()
 		},
 	}
 
